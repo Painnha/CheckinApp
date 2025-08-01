@@ -1,0 +1,14 @@
+{
+  "name": "conference-checkin-app",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:be": "yarn workspace backend nodemon src/index.js",
+    "dev:fe": "yarn workspace frontend react-scripts start",
+    "dev": "concurrently \"yarn dev:be\" \"yarn dev:fe\"",
+    "build:fe": "yarn workspace frontend react-scripts build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}
