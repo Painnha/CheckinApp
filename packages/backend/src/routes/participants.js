@@ -9,15 +9,28 @@ const router = express.Router();
 // Generate QR (POST /api/participants/generate) - Admin only
 router.post('/generate', protect, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Admin only' });
-  const participants = req.body;  // Array từ upload CSV/JSON: [{name, email}]
+  const participants = req.body;  // Array từ upload CSV/JSON: [{id, name, organization, avatar, seatNumber}]
   try {
     const results = [];
     for (const p of participants) {
-      const id = uuidv4();
-      const qrCode = await generateQR(id);  // QR chứa unique ID
-      const newParticipant = new Participant({ id, name: p.name, email: p.email, qrCode });
+      const qrCode = await generateQR(p.id);  // QR chứa ID được truyền vào
+      const newParticipant = new Participant({ 
+        id: p.id, 
+        name: p.name, 
+        organization: p.organization,
+        avatar: p.avatar,
+        seatNumber: p.seatNumber,
+        qrCode 
+      });
       await newParticipant.save();
-      results.push({ id, name: p.name, email: p.email, qrCode });
+      results.push({ 
+        id: p.id, 
+        name: p.name, 
+        organization: p.organization,
+        avatar: p.avatar,
+        seatNumber: p.seatNumber,
+        qrCode 
+      });
     }
     res.json(results);  // Trả về để tải xuống QR
   } catch (err) {
@@ -39,10 +52,23 @@ router.post('/checkin', protect, async (req, res) => {
 
     // Emit Socket.io events
     const io = req.app.get('io');  // Giả sử set io ở index.js: app.set('io', io);
-    io.emit('welcome', { name: participant.name, message: `Chào mừng ${participant.name} đến với đại hội!` });
+    io.emit('welcome', { 
+      name: participant.name, 
+      organization: participant.organization,
+      seatNumber: participant.seatNumber,
+      message: `Chào mừng ${participant.name} (${participant.organization}) đến với đại hội!` 
+    });
     io.emit('stats-update');  // Để FE refresh stats
 
-    res.json({ message: 'Check-in successful' });
+    res.json({ 
+      message: 'Check-in successful',
+      participant: {
+        name: participant.name,
+        organization: participant.organization,
+        avatar: participant.avatar,
+        seatNumber: participant.seatNumber
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: 'Check-in error' });
   }
@@ -61,6 +87,24 @@ router.get('/stats', protect, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Stats error' });
+  }
+});
+
+// Tìm thông tin người tham gia theo số ghế (GET /api/participants/seat/:seatNumber) - Staff/Admin
+router.get('/seat/:seatNumber', protect, async (req, res) => {
+  try {
+    const participant = await Participant.findOne({ seatNumber: req.params.seatNumber });
+    if (!participant) return res.status(404).json({ message: 'Không tìm thấy người tham gia với số ghế này' });
+    res.json({
+      id: participant.id,
+      name: participant.name,
+      organization: participant.organization,
+      avatar: participant.avatar,
+      seatNumber: participant.seatNumber,
+      checkedIn: participant.checkedIn
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi tìm kiếm theo số ghế' });
   }
 });
 
